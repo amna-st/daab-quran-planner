@@ -1,22 +1,24 @@
-const CACHE = 'daab-v3';
+const CACHE = 'daab-v4';
 
 const FILES = [
   './',
   './index.html',
   './manifest.webmanifest',
   './icon.svg',
-  './config.js'
+  './config.js',
+  './mushaf.html',
+  './quran-uthmani.txt'
 ];
 
 self.addEventListener('install', event => {
   event.waitUntil(
     caches.open(CACHE).then(async cache => {
-      await cache.addAll(FILES);
-
-      try {
-        await cache.add('./quran-uthmani.json');
-      } catch (error) {
-        console.log('ملف القرآن لم يُضف بعد');
+      for (const file of FILES) {
+        try {
+          await cache.add(file);
+        } catch (error) {
+          console.log('تعذر تخزين:', file);
+        }
       }
     })
   );
@@ -28,7 +30,8 @@ self.addEventListener('activate', event => {
   event.waitUntil(
     caches.keys().then(keys =>
       Promise.all(
-        keys.filter(key => key.startsWith('daab-') && key !== CACHE)
+        keys
+          .filter(key => key.startsWith('daab-') && key !== CACHE)
           .map(key => caches.delete(key))
       )
     )
@@ -46,11 +49,14 @@ self.addEventListener('fetch', event => {
 
       return fetch(event.request).then(response => {
         if (
+          response &&
           response.ok &&
           new URL(event.request.url).origin === self.location.origin
         ) {
           const copy = response.clone();
-          caches.open(CACHE).then(cache => cache.put(event.request, copy));
+          caches.open(CACHE).then(cache =>
+            cache.put(event.request, copy)
+          );
         }
 
         return response;
@@ -61,7 +67,9 @@ self.addEventListener('fetch', event => {
 
         return new Response('المحتوى غير متاح بدون اتصال.', {
           status: 503,
-          headers: { 'Content-Type': 'text/plain; charset=utf-8' }
+          headers: {
+            'Content-Type': 'text/plain; charset=utf-8'
+          }
         });
       });
     })
