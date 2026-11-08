@@ -1,0 +1,151 @@
+<!DOCTYPE html><html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#8e4b62">
+<title>مصحف دَأْب</title>
+<style>
+:root{--main:#8e4b62;--bg:#fffaf7;--soft:#f7edf0;--text:#382b30}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:Tahoma,Arial,sans-serif}
+header{background:var(--main);color:white;padding:18px;text-align:center}
+header h2{margin:0 0 10px}
+header a{color:white;text-decoration:none;border:1px solid white;padding:8px 14px;border-radius:10px;font-size:14px}
+main{max-width:850px;margin:auto;padding:15px}
+select,button{font:inherit}
+select{width:100%;padding:13px;border:1px solid #e5d5da;border-radius:12px;background:white;margin:8px 0}
+button{padding:11px 15px;border:0;border-radius:10px;background:var(--main);color:white;cursor:pointer;min-height:42px}
+button.secondary{background:var(--soft);color:var(--main)}
+.buttons{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}
+#status{color:#81747a;font-size:13px;margin:15px 2px}
+#verses{background:white;border:1px solid #eadde0;border-radius:16px;padding:16px}
+.bism{font-size:25px;text-align:center;color:var(--main);padding:12px;line-height:2}
+.ayah{font-family:"Traditional Arabic",Tahoma,serif;font-size:29px;line-height:2.2;border-bottom:1px solid #f2e9eb;padding:10px 0}
+.number{display:inline-block;border:1px solid #d9b9c4;color:var(--main);border-radius:50%;width:29px;height:29px;text-align:center;font:13px Tahoma;line-height:27px}
+.mark{display:block;margin:8px 0 0 auto;font-size:12px;min-height:34px}
+.mark.done{background:#e8f4e8;color:#28653a}
+.notice{background:var(--soft);padding:14px;border-radius:12px;line-height:1.8}
+footer{text-align:center;color:#81747a;font-size:12px;padding:20px;line-height:1.8}
+</style>
+</head>
+<body>
+<header>
+<h2>دَأْب | المصحف الشريف</h2>
+<a href="./index.html">العودة للمخطط</a>
+</header><main>
+<label for="surah">اختاري السورة:</label>
+<select id="surah"><option>جاري تحميل السور...</option></select><div class="buttons">
+<button class="secondary" id="previous">السورة السابقة</button>
+<button class="secondary" id="next">السورة التالية</button>
+<button class="secondary" id="last">آخر موضع قراءة</button>
+</div><div id="status">جاري تحميل القرآن الكريم...</div>
+<div id="verses"><p class="notice">لحظات ونجهز المصحف...</p></div>
+<p class="notice">يمكنك وضع علامة على الآيات التي أتممتِ حفظها. العلامات وآخر موضع قراءة محفوظة على جهازك.</p>
+</main><footer>
+نص القرآن بالرسم العثماني من مشروع Tanzil، دون تعديل.<br>
+المصدر: <a href="https://tanzil.net">Tanzil.net</a> — رخصة CC BY 3.0.
+</footer><script>
+(function(){
+const $=id=>document.getElementById(id);
+let quran=[],current=0;
+const marksKey='daab_mushaf_marks';
+const lastKey='daab_mushaf_last';
+
+function getMarks(){
+try{return JSON.parse(localStorage.getItem(marksKey)||'{}')}
+catch(e){return {}}
+}
+
+function render(){
+const s=quran[current];
+if(!s)return;
+
+let html='';
+const marks=getMarks();
+const verses=s.ayahs||s.verses||[];
+
+if(current!==0){
+html+='<div class="bism">بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ</div>';
+}
+
+verses.forEach((a,i)=>{
+const number=a.numberInSurah||a.number||i+1;
+const text=a.text||a.uthmani||a.arabic||'';
+const id=(s.number||current+1)+':'+number;
+const done=!!marks[id];
+
+html+='<div class="ayah">'+text+
+' <span class="number">'+number+'</span>'+
+'<button class="mark '+(done?'done':'')+'" data-id="'+id+'">'+
+(done?'✓ تم الحفظ':'علّميها محفوظة')+
+'</button></div>';
+});
+
+$('verses').innerHTML=html;
+$('surah').value=current;
+$('status').textContent='سورة '+(s.name||s.englishName||'')+' — '+verses.length+' آية';
+
+$('verses').querySelectorAll('.mark').forEach(button=>{
+button.addEventListener('click',()=>{
+const m=getMarks();
+if(m[button.dataset.id])delete m[button.dataset.id];
+else m[button.dataset.id]=true;
+localStorage.setItem(marksKey,JSON.stringify(m));
+render();
+});
+});
+
+$('previous').disabled=current===0;
+$('next').disabled=current===quran.length-1;
+localStorage.setItem(lastKey,current);
+}
+
+async function start(){
+try{
+const response=await fetch('./quran-uthmani.txt');
+if(!response.ok)throw new Error('لم يتم العثور على الملف');
+const raw=await response.json();
+
+quran=Array.isArray(raw)?raw:(raw.surahs||raw.data?.surahs||[]);
+
+if(!quran.length)throw new Error('تنسيق الملف غير معروف');
+
+$('surah').innerHTML=quran.map((s,i)=>
+'<option value="'+i+'">'+(s.number||i+1)+'. '+(s.name||s.englishName||'سورة')+'</option>'
+).join('');
+
+const last=Number(localStorage.getItem(lastKey));
+current=Number.isInteger(last)&&last>=0&&last<quran.length?last:0;
+render();
+
+}catch(error){
+$('status').textContent='حصلت مشكلة في تحميل المصحف.';
+$('verses').innerHTML='<p class="notice">تأكدي من وجود ملف quran-uthmani.txt بجانب mushaf.html، وأنه يحتوي على نص القرآن بصيغة JSON.</p>';
+}
+}
+
+$('surah').addEventListener('change',()=>{
+current=Number($('surah').value);
+render();
+window.scrollTo(0,0);
+});
+
+$('previous').addEventListener('click',()=>{
+if(current>0){current--;render();window.scrollTo(0,0)}
+});
+
+$('next').addEventListener('click',()=>{
+if(current<quran.length-1){current++;render();window.scrollTo(0,0)}
+});
+
+$('last').addEventListener('click',()=>{
+const last=Number(localStorage.getItem(lastKey));
+if(Number.isInteger(last)&&last>=0&&last<quran.length){
+current=last;render();window.scrollTo(0,0);
+}
+});
+
+start();
+})();
+</script></body>
+</html>
